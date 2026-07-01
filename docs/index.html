@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub Issues</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      line-height: 1.5;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .issue {
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+    .issue a {
+      color: #0969da;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .issue a:hover {
+      text-decoration: underline;
+    }
+    .meta {
+      color: #57606a;
+      font-size: 0.875rem;
+      margin-top: 0.25rem;
+    }
+    .labels {
+      margin-top: 0.5rem;
+    }
+    .label {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      margin-right: 0.35rem;
+      border-radius: 999px;
+      border: 1px solid #d0d7de;
+      background-color: #f6f8fa;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .error {
+      color: #cf222e;
+      padding: 1rem;
+      border: 1px solid #cf222e;
+      border-radius: 6px;
+      background-color: #fff5f5;
+    }
+    .empty {
+      color: #57606a;
+    }
+  </style>
+</head>
+<body>
+  <h1>Issues</h1>
+  <div id="issues">載入中…</div>
+
+  <script>
+    // 修改以下兩個變數即可更換目標倉庫
+    const REPO_OWNER = 'facebook';
+    const REPO_NAME = 'react';
+
+    async function loadIssues() {
+      const container = document.getElementById('issues');
+      const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/issues?state=open&per_page=20`;
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`GitHub API 回應 ${response.status} ${response.statusText}`);
+        }
+
+        const issues = await response.json();
+
+        container.innerHTML = '';
+
+        if (issues.length === 0) {
+          container.innerHTML = '<p class="empty">目前沒有開啟的 issues。</p>';
+          return;
+        }
+
+        issues.forEach(issue => {
+          const card = document.createElement('div');
+          card.className = 'issue';
+
+          const title = document.createElement('h2');
+          const link = document.createElement('a');
+          link.href = issue.html_url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = issue.title;
+          title.appendChild(link);
+
+          const meta = document.createElement('p');
+          meta.className = 'meta';
+          const created = new Date(issue.created_at);
+          const formatted = created.toISOString().split('T')[0];
+          meta.textContent = `建立時間：${formatted}`;
+
+          const labelsDiv = document.createElement('div');
+          labelsDiv.className = 'labels';
+          issue.labels.forEach(label => {
+            const badge = document.createElement('span');
+            badge.className = 'label';
+            badge.textContent = label.name;
+            labelsDiv.appendChild(badge);
+          });
+
+          card.appendChild(title);
+          card.appendChild(meta);
+          card.appendChild(labelsDiv);
+          container.appendChild(card);
+        });
+      } catch (error) {
+        container.innerHTML = `<p class="error">載入失敗：${error.message}</p>`;
+      }
+    }
+
+    loadIssues();
+  </script>
+</body>
+</html>
