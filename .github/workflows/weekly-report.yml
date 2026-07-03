@@ -11,6 +11,14 @@ jobs:
     permissions:
       issues: write
       models: read
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO_OWNER: ${{ github.repository_owner }}
+      REPO_NAME: ${{ github.event.repository.name }}
+      AI_MODEL: gpt-4o-mini
+      DAYS_BACK: '7'
+      MAX_ISSUES: '20'
+      ACTIONS_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,14 +31,31 @@ jobs:
       - name: Install dependencies
         run: pip install openai
 
-      - name: Generate and create weekly report issue
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO_OWNER: ${{ github.repository_owner }}
-          REPO_NAME: ${{ github.event.repository.name }}
-          AI_MODEL: gpt-4o-mini
-          DAYS_BACK: '7'
+      - name: Run main pipeline
+        id: main_pipeline
         run: |
-          python scripts/fetch_issues.py \
-            | python scripts/generate_report.py \
-            | python scripts/create_issue.py
+          ISSUES=$(python scripts/fetch_issues.py)
+
+          # filter_issues.py uses exit(2) to mean "no issues, skip normally"
+          FILTERED=$(echo "$ISSUES" | python scripts/filter_issues.py)
+          FILTER_EXIT=$?
+
+          if [ $FILTER_EXIT -eq 2 ]; then
+            echo "no_issues=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          REPORT=$(echo "$FILTERED" | python scripts/generate_report.py)
+          ISSUE_URL=$(echo "$REPORT" | python scripts/create_issue.py)
+
+          echo "issue_url=$ISSUE_URL" >> $GITHUB_OUTPUT
+
+      - name: Validate report
+        if: steps.main_pipeline.outputs.no_issues != 'true'
+        run: |
+          python scripts/validate_report.py "${{ steps.main_pipeline.outputs.issue_url }}"
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          python scripts/notify_failure.py "Workflow 執行失敗，請查看 Actions log：$ACTIONS_RUN_URL"
